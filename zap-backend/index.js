@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const wppconnect = require('@wppconnect-team/wppconnect');
+const puppeteer = require('puppeteer'); // Importado para obter caminho do Chromium
 
 const app = express();
 app.use(cors());
@@ -13,10 +14,13 @@ app.get("/", (req, res) => {
 
 console.log('[APP_LOG] Iniciando o processo de criação do cliente wppconnect...');
 
+// Caminho correto para o Chromium instalado
+const chromiumPath = puppeteer.executablePath();
+
 wppconnect.create({
   session: 'zap_ia_loop',
   catchQR: (qrBase64) => {
-    console.log('[APP_LOG] QR code recebido:', qrBase64); // você pode enviar pro frontend depois
+    console.log('[APP_LOG] QR code recebido:', qrBase64); // Você pode enviar esse QR para o frontend depois
   },
   statusFind: (statusSession, session) => {
     console.log('[APP_LOG] Status da sessão:', statusSession, 'Session name:', session);
@@ -30,21 +34,23 @@ wppconnect.create({
       '--single-process',
       '--no-zygote'
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+    executablePath: chromiumPath
   },
   logQR: true,
 }).then((client) => {
   console.log('[APP_LOG] Cliente wppconnect criado com sucesso!');
+
   app.post('/send-message', async (req, res) => {
     const { number, message } = req.body;
     try {
       await client.sendText(`${number}@c.us`, message);
       res.send({ success: true });
     } catch (err) {
-      console.error('[APP_LOG] Erro ao enviar mensagem:', err); // Adicionado log de erro aqui
+      console.error('[APP_LOG] Erro ao enviar mensagem:', err);
       res.status(500).send({ success: false, error: err.message });
     }
   });
+
   console.log('[APP_LOG] Endpoint /send-message configurado.');
 }).catch((err) => {
   console.error('[APP_LOG] Erro ao criar cliente wppconnect:', err);
@@ -63,4 +69,4 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[APP_LOG] Rejeição não tratada (unhandledRejection):', reason);
-}); 
+});
