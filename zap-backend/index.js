@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const wppconnect = require('@wppconnect-team/wppconnect');
-const puppeteer = require('puppeteer'); // Importado para obter caminho do Chromium
+const puppeteer = require('puppeteer-core'); // Importado para obter caminho do Chromium
 
 const app = express();
 app.use(cors());
@@ -15,7 +15,7 @@ app.get("/", (req, res) => {
 console.log('[APP_LOG] Iniciando o processo de criação do cliente wppconnect...');
 
 // Caminho correto para o Chromium instalado
-const chromiumPath = puppeteer.executablePath();
+const chromiumPath = '/opt/render/project/.render/chrome/opt/google/chrome/chrome';
 
 wppconnect.create({
   session: 'zap_ia_loop',
@@ -26,6 +26,8 @@ wppconnect.create({
     console.log('[APP_LOG] Status da sessão:', statusSession, 'Session name:', session);
   },
   puppeteerOptions: {
+    executablePath: chromiumPath,
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -34,7 +36,6 @@ wppconnect.create({
       '--single-process',
       '--no-zygote'
     ],
-    executablePath: chromiumPath
   },
   logQR: true,
 }).then((client) => {
