@@ -19,6 +19,16 @@ wppconnect.create({
   statusFind: (statusSession) => {
     console.log('Status da sessão:', statusSession);
   },
+  puppeteerOptions: {
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote'
+    ]
+  },
 }).then((client) => {
   app.post('/send-message', async (req, res) => {
     const { number, message } = req.body;
