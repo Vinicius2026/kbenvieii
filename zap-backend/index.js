@@ -179,6 +179,23 @@ wppconnect.create({
   });
 }
 
+// Função para encerramento gracioso do cliente WPPConnect
+async function gracefulShutdown(signal) {
+  console.log(`[APP_LOG] Recebido ${signal}. Encerrando cliente WPPConnect...`);
+  if (global.wppClient) {
+    try {
+      await global.wppClient.close();
+      console.log('[APP_LOG] Cliente WPPConnect encerrado com sucesso.');
+    } catch (err) {
+      console.error('[APP_LOG] Erro ao encerrar cliente WPPConnect:', err);
+    }
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 process.on('uncaughtException', (err) => {
   console.error('[APP_LOG] Erro não tratado (uncaughtException):', err);
   // process.exit(1); // Comentado para evitar que o Render pare em erros menores durante o desenvolvimento
