@@ -134,32 +134,35 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // Função para inicializar o WPPConnect
 function initializeWppConnect(broadcastFunction) {
+  const chromePath = process.env.CHROME_EXEC_PATH;
+  console.log('[DEBUG] Caminho do Chrome recebido:', chromePath);
+  console.log('[DEBUG] Chrome existe?', fs.existsSync(chromePath));
   console.log('[APP_LOG] Iniciando WPPConnect...');
-wppconnect.create({
+  wppconnect.create({
     session: process.env.WPP_SESSION_NAME || 'zap-session', // Nome da sessão
-  catchQR: (qrBase64, asciiQR, attempt, urlCode) => {
+    catchQR: (qrBase64, asciiQR, attempt, urlCode) => {
       global.lastQrCode = { data: qrBase64, asciiData: asciiQR, attempt };
       console.log('[APP_LOG] QR Code recebido! Tentativa:', attempt);
       broadcastFunction({ type: 'qr_code', data: qrBase64, asciiData: asciiQR, attempt: attempt });
-  },
-  statusFind: (statusSession, session) => {
+    },
+    statusFind: (statusSession, session) => {
       console.log('[APP_LOG] Status da sessão:', statusSession, '| Nome da sessão:', session);
       broadcastFunction({ type: 'session_status', data: statusSession, sessionName: session });
       if (statusSession === 'isConnected') {
         // Você pode querer transmitir algo extra quando conectado
         // broadcastFunction({ type: 'connection_update', status: 'connected', message: 'WhatsApp Conectado!'});
       }
-  },
-  puppeteerOptions: {
+    },
+    puppeteerOptions: {
       executablePath: process.env.CHROME_EXEC_PATH, // DEVE SER CONFIGURADO NO RENDER
       args: [ // Argumentos recomendados para ambientes como o Render
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-      '--disable-gpu',
+        '--disable-gpu',
         '--disable-infobars', // Oculta a barra "Chrome está sendo controlado por software de teste automatizado"
         '--window-size=1280,720', // Define um tamanho de janela, pode ajudar em alguns casos
         // '--single-process', // DESCONTINUADO E PODE CAUSAR PROBLEMAS, EVITE SE POSSÍVEL
