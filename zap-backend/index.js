@@ -3,68 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const wppconnect = require('@wppconnect-team/wppconnect');
 const puppeteer = require('puppeteer-core');
-const { createClient } = require('@supabase/supabase-js'); // Import Supabase
-const OpenAI = require('openai'); // Import OpenAI
-const crypto = require('crypto'); // Import Crypto
-const fs = require('fs'); // Import File System para criar diretório da sessão
-const http = require('http'); // Usaremos http padrão
+const fs = require('fs');
+const http = require('http');
 const WebSocket = require('ws');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Variáveis de Ambiente para Supabase, OpenAI e Criptografia
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const openaiApiKeyEncrypted = process.env.OPENAI_API_KEY_ENCRYPTED;
-const openaiAssistantId = process.env.OPENAI_ASSISTANT_ID;
-const encryptionKeyHex = process.env.ENCRYPTION_KEY; // Espera-se uma chave HEX de 64 caracteres (32 bytes)
-
-// Inicializar Cliente Supabase
-let supabase;
-if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey);
-  console.log('[APP_LOG] Cliente Supabase inicializado.');
-} else {
-  console.warn('[APP_LOG] Variáveis SUPABASE_URL ou SUPABASE_KEY não definidas. Integração com Supabase desabilitada.');
-}
-
-// Inicializar Cliente OpenAI (a chave será definida após descriptografia)
-const openai = new OpenAI({
-  apiKey: null, // Será definido dinamicamente
-});
-
-// Função para descriptografar a chave da API OpenAI
-function decrypt(encryptedDataHex) {
-  if (!encryptedDataHex || !encryptionKeyHex) {
-    console.error('[APP_LOG] Chave da API OpenAI criptografada (OPENAI_API_KEY_ENCRYPTED) ou chave de descriptografia (ENCRYPTION_KEY) não fornecida no .env.');
-    return null;
-  }
-  if (encryptionKeyHex.length !== 64) {
-    console.error('[APP_LOG] ENCRYPTION_KEY deve ser uma string hexadecimal de 64 caracteres (32 bytes).');
-    return null;
-  }
-  try {
-    const parts = encryptedDataHex.split(':');
-    if (parts.length !== 2) throw new Error('Formato inválido para a chave criptografada. Esperado: iv_hex:encrypted_data_hex');
-    
-    const iv = Buffer.from(parts[0], 'hex');
-    const encryptedText = Buffer.from(parts[1], 'hex');
-    const key = Buffer.from(encryptionKeyHex, 'hex');
-    
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    console.log('[APP_LOG] Chave da API OpenAI descriptografada com sucesso.');
-    return decrypted.toString();
-  } catch (error) {
-    console.error('[APP_LOG] Falha ao descriptografar a chave da API OpenAI:', error.message);
-    return null;
-  }
-}
-
-// Rota para enviar mensagens (exemplo)
 app.post('/send-message', async (req, res) => {
   const { number, message } = req.body;
   if (!global.wppClient) {
