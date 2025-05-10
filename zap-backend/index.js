@@ -44,6 +44,9 @@ const wss = new WebSocket.Server({ server });
 
 let connectedClients = new Set();
 
+// Variável global para armazenar o último QR Code recebido
+global.lastQrCode = null;
+
 wss.on('connection', (ws, req) => {
   const clientIp = req.socket.remoteAddress || req.headers['x-forwarded-for'];
   const originalProto = req.headers['x-forwarded-proto'];
@@ -54,6 +57,21 @@ wss.on('connection', (ws, req) => {
     console.log('[APP_LOG] Mensagem recebida do cliente WebSocket:', messageText.toString());
     try {
       const parsedMessage = JSON.parse(messageText.toString());
+
+      // NOVO: Handler para request_qr
+      if (parsedMessage.type === 'request_qr') {
+        if (global.lastQrCode) {
+          ws.send(JSON.stringify({
+            type: 'qr_code',
+            data: global.lastQrCode.data,
+            asciiData: global.lastQrCode.asciiData,
+            attempt: global.lastQrCode.attempt
+          }));
+        } else {
+          ws.send(JSON.stringify({ type: 'qr_code', data: null }));
+        }
+        return;
+      }
 
       if (parsedMessage.type === 'send_whatsapp_message' && parsedMessage.payload) {
         const { number, message: msgToSend } = parsedMessage.payload;
@@ -120,6 +138,7 @@ function initializeWppConnect(broadcastFunction) {
 wppconnect.create({
     session: process.env.WPP_SESSION_NAME || 'zap-session', // Nome da sessão
   catchQR: (qrBase64, asciiQR, attempt, urlCode) => {
+      global.lastQrCode = { data: qrBase64, asciiData: asciiQR, attempt };
       console.log('[APP_LOG] QR Code recebido! Tentativa:', attempt);
       broadcastFunction({ type: 'qr_code', data: qrBase64, asciiData: asciiQR, attempt: attempt });
   },
