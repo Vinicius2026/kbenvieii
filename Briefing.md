@@ -1,90 +1,167 @@
-# Briefing Técnico: Projeto zap-backend
+# Briefing Técnico do Sistema de Interação WhatsApp
 
-## 1. Visão Geral
+## 1. Visão Geral do Sistema
 
-**Nome do Projeto:** `zap-backend`
+**Objetivo Principal:** Construir um sistema robusto para automação de interações com o WhatsApp, permitindo o envio e recebimento de mensagens, gerenciamento de conversas com IA e visualização em uma interface de usuário.
 
-**Objetivo Principal:** Fornecer um serviço de backend para automação de interações com o WhatsApp. Ele permite o envio de mensagens e o monitoramento da conexão com o WhatsApp Web, sendo projetado para ser hospedado em plataformas como Render ou Railway.
+O sistema é composto por três componentes principais:
 
-## 2. Tecnologias Utilizadas
+*   **`zap-backend` (Gateway WhatsApp):** Um serviço Node.js responsável exclusivamente pela comunicação direta com o WhatsApp (via `wppconnect`). Ele atua como um gateway, encaminhando mensagens e eventos.
+    *   **Hospedagem:** Render.
+*   **`Backend Bolt` (Lógica de Negócios e IA):** O cérebro do sistema. Responsável por processar as mensagens recebidas, interagir com a API da OpenAI, gerenciar o histórico de conversas no Supabase e coordenar as respostas.
+    *   **Hospedagem/Implementação:** Pode ser implementado como Supabase Edge Functions (Deno/TypeScript) ou como um serviço Node.js separado (ex: no Render).
+*   **`Frontend Bolt` (Interface do Usuário):** Uma aplicação web (React/Vite) para administradores ou usuários visualizarem o status da conexão WhatsApp, o QR Code e o histórico das conversas.
+    *   **Hospedagem:** Netlify (ou Render Static Sites).
 
-*   **Node.js:** Ambiente de execução JavaScript do lado do servidor.
-*   **Express.js:** Framework web minimalista e flexível para Node.js, utilizado para criar a API RESTful.
-*   **@wppconnect-team/wppconnect:** Biblioteca principal para conectar e interagir com o WhatsApp Web.
-*   **Puppeteer-core:** Versão leve do Puppeteer, usada pelo `wppconnect` para controlar uma instância do Chrome (ou Chromium) e interagir com o WhatsApp Web. Exige que o Chrome/Chromium seja fornecido separadamente no ambiente de execução.
-*   **dotenv:** Módulo para carregar variáveis de ambiente de um arquivo `.env` para `process.env`.
-*   **cors:** Middleware para habilitar o Cross-Origin Resource Sharing, permitindo que o backend receba requisições de diferentes origens (frontends).
+## 2. Arquitetura Detalhada dos Componentes
 
-## 3. Estrutura do Projeto
+### 2.1. `zap-backend` (Gateway WhatsApp)
 
-*   **`index.js`**:
-    *   **Função:** Ponto de entrada principal da aplicação.
-    *   **Responsabilidades:**
-        *   Carregar variáveis de ambiente (usando `dotenv`).
-        *   Configurar e iniciar o servidor Express.
-        *   Definir middlewares (como `cors` e `express.json`).
-        *   Inicializar o cliente `wppconnect`, incluindo a configuração do `puppeteerOptions` com um caminho específico para o executável do Chrome (necessário para ambientes de deploy como o Render).
-        *   Gerenciar eventos do `wppconnect` (ex: recebimento de QR Code, status da sessão).
-        *   Definir rotas da API (ex: `GET /` para verificação de status, `POST /send-message` para enviar mensagens).
-        *   Tratar erros e exceções não capturadas.
-        *   Iniciar o servidor na porta especificada (via `process.env.PORT` ou um valor padrão).
+*   **Tecnologias Base:** Node.js, Express.js, `@wppconnect-team/wppconnect`, `puppeteer-core`, `ws` (para WebSocket Server).
+*   **Responsabilidades:**
+    *   Estabelecer e manter a conexão com o WhatsApp Web.
+    *   Gerenciar eventos do `wppconnect` (QR Code, status da sessão, desconexão).
+    *   Servir como um servidor WebSocket para:
+        *   Transmitir QR Code e status da sessão para o `Frontend Bolt`.
+        *   Receber mensagens de usuários do WhatsApp e encaminhá-las para o `Backend Bolt`.
+        *   Receber respostas processadas do `Backend Bolt` e enviá-las para os usuários do WhatsApp.
+    *   Expor um endpoint HTTP básico para health check.
+*   **Comunicação:**
+    *   Com WhatsApp: via `wppconnect`.
+    *   Com `Backend Bolt`: via WebSocket (bidirecional).
+    *   Com `Frontend Bolt`: via WebSocket (para QR/status).
 
-*   **`package.json`**:
-    *   **Função:** Arquivo de manifesto do projeto Node.js.
-    *   **Conteúdo:**
-        *   Metadados do projeto (nome, versão, etc.).
-        *   Scripts NPM (ex: `start` para iniciar a aplicação com `node index.js`).
-        *   Lista de dependências de produção (`dependencies`) e de desenvolvimento (`devDependencies`, se houver).
+### 2.2. `Backend Bolt` (Lógica de Negócios e IA)
 
-*   **`package-lock.json`**:
-    *   **Função:** Registra as versões exatas das dependências instaladas, garantindo builds consistentes em diferentes ambientes.
+*   **Tecnologias Base (Exemplo com Node.js):** Node.js, SDK do Supabase (`@supabase/supabase-js`), SDK da OpenAI (`openai`), cliente WebSocket (`ws`). (Se Edge Functions: Deno, SDKs equivalentes).
+*   **Responsabilidades:**
+    *   Conectar-se como cliente WebSocket ao `zap-backend` para receber mensagens do WhatsApp.
+    *   Processar as mensagens recebidas:
+        *   Interagir com a API da OpenAI (usando `OPENAI_API_KEY` e `OPENAI_ASSISTANT_ID`) para gerar respostas.
+        *   Salvar o histórico da conversa (mensagens do usuário e respostas da IA) no banco de dados Supabase (tabela `conversation_logs`).
+    *   Enviar a resposta gerada pela IA de volta para o `zap-backend` (via WebSocket) para ser entregue ao usuário do WhatsApp.
+*   **Comunicação:**
+    *   Com `zap-backend`: via WebSocket (bidirecional).
+    *   Com Supabase: via SDK para leitura/escrita no banco de dados.
+    *   Com OpenAI: via SDK para chamadas à API.
 
-*   **`.env`**:
-    *   **Função:** Armazena variáveis de ambiente específicas do ambiente (local, desenvolvimento, produção).
-    *   **Exemplo de Conteúdo:** `PORT=3000`
-    *   **Importante:** Este arquivo não deve ser versionado no Git por questões de segurança (geralmente adicionado ao `.gitignore`).
+### 2.3. `Frontend Bolt` (Interface do Usuário)
 
-*   **`.gitignore`**:
-    *   **Função:** Especifica arquivos e pastas que devem ser intencionalmente ignorados pelo Git.
-    *   **Exemplos Comuns:** `node_modules/`, `.env`, logs, arquivos de build temporários.
+*   **Tecnologias Base:** React, Vite, cliente WebSocket, SDK do Supabase (`@supabase/supabase-js`).
+*   **Responsabilidades:**
+    *   Conectar-se ao servidor WebSocket do `zap-backend` para:
+        *   Receber e exibir o QR Code para autenticação do WhatsApp.
+        *   Exibir o status da conexão com o WhatsApp.
+    *   Conectar-se ao Supabase para:
+        *   Autenticar usuários/administradores do dashboard (se aplicável).
+        *   Inscrever-se em atualizações em tempo real (Supabase Realtime) da tabela `conversation_logs` para exibir o histórico das conversas.
+        *   (Opcional) Chamar Supabase Edge Functions para outras funcionalidades administrativas.
+*   **Comunicação:**
+    *   Com `zap-backend`: via WebSocket.
+    *   Com Supabase: via SDK (REST, Realtime, chamadas a Edge Functions).
 
-*   **`node_modules/`**:
-    *   **Função:** Diretório onde o NPM instala todas as dependências listadas no `package.json`. Não é versionado.
+## 3. Fluxo de Comunicação Principal (Exemplo de Mensagem)
 
-## 4. Configuração para Deploy (Ex: Render/Railway)
+1.  **`Frontend Bolt`** conecta-se ao WS do `zap-backend` e exibe o QR Code recebido.
+2.  Usuário escaneia o QR Code com o app WhatsApp. `zap-backend` detecta a conexão e notifica o `Frontend Bolt` (via WS).
+3.  Um usuário final envia uma mensagem para o número WhatsApp conectado.
+4.  **`zap-backend`** (`wppconnect`) recebe a mensagem.
+5.  **`zap-backend`** encaminha a mensagem (ex: `{ type: 'whatsapp_message', data: {...} }`) para o **`Backend Bolt`** via WebSocket.
+6.  **`Backend Bolt`** recebe a mensagem:
+    *   Salva a mensagem do usuário na tabela `conversation_logs` do Supabase.
+    *   Chama a API da OpenAI para gerar uma resposta.
+    *   Salva a resposta da OpenAI na tabela `conversation_logs` do Supabase.
+    *   Envia a resposta da OpenAI (ex: `{ type: 'send_whatsapp_message', payload: { number: '...', message: '...' } }`) de volta para o **`zap-backend`** via WebSocket.
+7.  **`Frontend Bolt`**, que está inscrito no Supabase Realtime para a tabela `conversation_logs`, recebe as novas mensagens (do usuário e da IA) e atualiza a interface da conversa.
+8.  **`zap-backend`** recebe a payload do `Backend Bolt` e envia a mensagem de resposta para o usuário final no WhatsApp usando `wppconnect`.
 
-*   **Dependência do Chrome:** Como `puppeteer-core` é utilizado, o Google Chrome (ou Chromium) precisa estar disponível no ambiente de execução.
-*   **Build Command (Comando de Build):**
-    *   Responsável por instalar as dependências do Node.js (`npm install`).
-    *   Responsável por baixar e extrair o Google Chrome para um local específico no sistema de arquivos do container de deploy (ex: `/opt/render/project/.render/chrome`). O `index.js` referencia este caminho em `puppeteerOptions.executablePath`.
-    *   Exemplo de comando: `npm install && mkdir -p /opt/render/project/.render/chrome && curl -SL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && dpkg -x /tmp/chrome.deb /opt/render/project/.render/chrome && rm /tmp/chrome.deb`
+## 4. Tecnologias Chave por Componente
 
-*   **Start Command (Comando de Início):**
-    *   Comando que efetivamente inicia a aplicação após o build.
-    *   Geralmente `npm start`, que por sua vez executa `node index.js` (conforme definido no `package.json`).
+*   **`zap-backend`:** Node.js, Express.js, @wppconnect-team/wppconnect, puppeteer-core, ws.
+*   **`Backend Bolt`:** Node.js (ou Deno para Edge Functions), @supabase/supabase-js, openai (SDK), ws (cliente).
+*   **`Frontend Bolt`:** React, Vite, ws (cliente), @supabase/supabase-js.
 
-## 5. Fluxo da Aplicação
+## 5. Configuração de Deploy e Hospedagem
 
-1.  **Inicialização:**
-    *   O servidor Node.js é iniciado (`node index.js`).
-    *   Variáveis de ambiente são carregadas.
-    *   O servidor Express é configurado.
-    *   O cliente `wppconnect` é inicializado.
-        *   `puppeteer-core` tenta iniciar o Chrome usando o `executablePath` fornecido.
-        *   Um QR Code é gerado (se não houver sessão salva) e logado no console (ou pode ser enviado para um frontend).
-2.  **Autenticação:**
-    *   O usuário escaneia o QR Code com o WhatsApp.
-    *   O status da sessão muda para conectado.
-3.  **Operação:**
-    *   O backend fica escutando por requisições na API.
-    *   Uma requisição `POST` para `/send-message` com `number` e `message` no corpo aciona o envio de uma mensagem via `wppconnect`.
-4.  **Monitoramento:**
-    *   Logs de status e erros são emitidos no console.
+*   **`zap-backend` (Render):**
+    *   **Tipo:** Web Service.
+    *   **Build Command:** `npm install && mkdir -p ./chrome_data && curl -SL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && dpkg -x /tmp/chrome.deb ./chrome_data && rm /tmp/chrome.deb` (Exemplo, ajustar caminho em `executablePath`).
+    *   **Start Command:** `node index.js`.
+    *   **Persistência de Sessão:** Requer configuração de "Persistent Disk" no Render para o diretório da sessão do `wppconnect`.
+*   **`Backend Bolt`:**
+    *   **Opção 1: Supabase Edge Functions:** Deploy gerenciado pelo Supabase CLI junto com seu projeto Supabase.
+    *   **Opção 2: Serviço Node.js no Render:** Similar ao `zap-backend`, mas sem as dependências do Chrome/wppconnect. Build: `npm install`, Start: `node server.js`.
+*   **`Frontend Bolt` (Netlify):**
+    *   **Build Command (Vite):** `npm run build`.
+    *   **Publish directory:** `dist`.
+    *   Configurar variáveis de ambiente no Netlify.
+    *   (Alternativa: Render Static Sites).
 
-## 6. Pontos de Atenção e Próximos Passos Potenciais
+## 6. Variáveis de Ambiente Cruciais
 
-*   **Gerenciamento de Sessão:** Considerar como a sessão do `wppconnect` será persistida entre reinícios do servidor (o `wppconnect` tem opções para isso).
-*   **Tratamento de Erros:** Aprimorar o tratamento de erros e logging para facilitar a depuração.
-*   **Segurança:** Revisar as configurações de segurança, especialmente se a API for exposta publicamente.
-*   **Escalabilidade:** Avaliar a necessidade de escalabilidade dependendo da carga esperada.
-*   **Frontend:** Se houver um frontend, garantir que a comunicação (ex: para exibir QR Code e receber status) seja eficiente.
+*   **`zap-backend` (Ex: no Render):**
+    *   `PORT`: Fornecido pelo Render.
+    *   `CHROME_EXEC_PATH`: Caminho para o executável do Chrome no ambiente de deploy (ex: `./chrome_data/opt/google/chrome/chrome`).
+    *   `WPP_SESSION_NAME`: Nome da sessão do WhatsApp (ex: `bolt-session`).
+    *   (Opcional) `WEBSOCKET_SHARED_SECRET`: Se implementar autenticação de WS com o `Backend Bolt`.
+*   **`Backend Bolt` (Ex: Supabase Edge Function Secrets ou Render Env Vars):**
+    *   `SUPABASE_URL`: URL do seu projeto Supabase.
+    *   `SUPABASE_SERVICE_ROLE_KEY`: Chave de serviço do Supabase.
+    *   `OPENAI_API_KEY`: Sua chave da API OpenAI.
+    *   `OPENAI_ASSISTANT_ID`: ID do seu assistente OpenAI.
+    *   `ZAP_BACKEND_WS_URL`: URL do WebSocket do `zap-backend` (ex: `wss://your-zap-backend.onrender.com`).
+    *   (Opcional) `WEBSOCKET_SHARED_SECRET`: Mesmo segredo do `zap-backend`.
+*   **`Frontend Bolt` (Ex: Netlify Env Vars, prefixadas com `VITE_` para Vite):**
+    *   `VITE_SUPABASE_URL`: URL do seu projeto Supabase.
+    *   `VITE_SUPABASE_ANON_KEY`: Chave anônima pública do Supabase.
+    *   `VITE_ZAP_BACKEND_WS_URL`: URL do WebSocket do `zap-backend`.
+
+## 7. Briefing de Status do Projeto (Onde Estamos)
+
+*   **`zap-backend`:**
+    *   Estrutura base como gateway WhatsApp implementada (`index.js`).
+    *   Comunicação WebSocket básica para envio de QR/Status e encaminhamento de mensagens (entrada/saída) definida.
+    *   Lógica de Supabase e OpenAI foi removida com sucesso, focando no papel de gateway.
+    *   **Próximo:** Configurar persistência de sessão no Render e, opcionalmente, autenticação de conexão WebSocket com o `Backend Bolt`.
+*   **`Backend Bolt`:**
+    *   Componente conceitualizado, arquitetura definida.
+    *   **Próximo:** Precisa ser implementado (escolher entre Edge Function ou servidor Node.js). Desenvolver:
+        *   Lógica de conexão WebSocket cliente persistente com o `zap-backend` (com tratamento de reconexão).
+        *   Integração com SDK da OpenAI.
+        *   Integração com SDK do Supabase para salvar/consultar `conversation_logs`.
+*   **`Frontend Bolt`:**
+    *   Aplicação React/Vite existente.
+    *   **Próximo:** Precisa integrar/desenvolver:
+        *   Conexão WebSocket com `zap-backend` para receber e exibir QR Code e status da sessão.
+        *   Implementação da escuta do Supabase Realtime na tabela `conversation_logs` para exibir o histórico da conversa.
+        *   (Opcional) Lógica de autenticação de usuário/administrador se o dashboard tiver acesso restrito.
+*   **Supabase:**
+    *   Estrutura da tabela `conversation_logs` precisa ser definida e criada.
+    *   Políticas de Row Level Security (RLS) precisam ser implementadas para proteger os dados da conversa.
+
+## 8. Pontos de Atenção e Próximos Passos Gerais
+
+*   **Segurança:**
+    *   Implementar RLS no Supabase é **crítico**.
+    *   Considerar autenticação para a conexão WebSocket entre `zap-backend` e `Backend Bolt`.
+    *   Gerenciar chaves de API e segredos de forma segura.
+*   **Tratamento de Erros e Resiliência:**
+    *   Implementar reconexão automática para o cliente WebSocket no `Backend Bolt`.
+    *   Tratamento robusto de erros em todas as interações de API e WS.
+    *   Mecanismos de retry para operações críticas.
+*   **Gerenciamento de Estado no Frontend:**
+    *   Utilizar uma biblioteca de gerenciamento de estado (Context API, Zustand, Redux) se a complexidade do `Frontend Bolt` crescer.
+*   **Testes:** Desenvolver testes unitários e de integração para os componentes.
+*   **Documentação:** Manter este briefing e outra documentação relevante atualizada.
+
+## 9. Estrutura Original do Projeto `zap-backend` (Referência)
+
+*   **`index.js`**: Ponto de entrada, configuração Express, inicialização `wppconnect`, rotas, servidor HTTP/WS.
+*   **`package.json`**: Manifesto do projeto, scripts, dependências.
+*   **`package-lock.json`**: Lockfile de dependências.
+*   **`.env`**: Variáveis de ambiente locais (não versionado).
+*   **`.gitignore`**: Arquivos ignorados pelo Git.
+*   **`node_modules/`**: Dependências instaladas (não versionado).
+
+---
+*Este briefing será atualizado conforme o projeto evolui.*
