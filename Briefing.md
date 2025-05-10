@@ -116,43 +116,34 @@ O sistema é composto por três componentes principais:
     *   `VITE_SUPABASE_ANON_KEY`: Chave anônima pública do Supabase.
     *   `VITE_ZAP_BACKEND_WS_URL`: URL do WebSocket do `zap-backend`.
 
-## 7. Briefing de Status do Projeto (Onde Estamos)
+## 7. Briefing de Status do Projeto (Onde Estamos) — ATUALIZADO
 
-*   **`zap-backend`:**
-    *   Estrutura base como gateway WhatsApp implementada (`index.js`).
-    *   Comunicação WebSocket básica para envio de QR/Status e encaminhamento de mensagens (entrada/saída) definida.
-    *   Lógica de Supabase e OpenAI foi removida com sucesso, focando no papel de gateway.
-    *   **Próximo:** Configurar persistência de sessão no Render e, opcionalmente, autenticação de conexão WebSocket com o `Backend Bolt`.
-*   **`Backend Bolt`:**
-    *   Componente conceitualizado, arquitetura definida.
-    *   **Próximo:** Precisa ser implementado (escolher entre Edge Function ou servidor Node.js). Desenvolver:
-        *   Lógica de conexão WebSocket cliente persistente com o `zap-backend` (com tratamento de reconexão).
-        *   Integração com SDK da OpenAI.
-        *   Integração com SDK do Supabase para salvar/consultar `conversation_logs`.
-*   **`Frontend Bolt`:**
-    *   Aplicação React/Vite existente.
-    *   **Próximo:** Precisa integrar/desenvolver:
-        *   Conexão WebSocket com `zap-backend` para receber e exibir QR Code e status da sessão.
-        *   Implementação da escuta do Supabase Realtime na tabela `conversation_logs` para exibir o histórico da conversa.
-        *   (Opcional) Lógica de autenticação de usuário/administrador se o dashboard tiver acesso restrito.
-*   **Supabase:**
-    *   Estrutura da tabela `conversation_logs` precisa ser definida e criada.
-    *   Políticas de Row Level Security (RLS) precisam ser implementadas para proteger os dados da conversa.
+*   **Frontend Bolt:**
+    *   Código de conexão WebSocket robusto implementado (`websocket.ts`), com tratamento de eventos e envio de pings.
+    *   Endpoint WSS configurado corretamente para produção.
+    *   Checklist de diagnóstico WebSocket seguido para garantir comunicação entre Netlify e Render.
+    *   Próximo: Testar conexão WebSocket no ambiente de produção e monitorar logs do navegador.
 
-## 8. Pontos de Atenção e Próximos Passos Gerais
+*   **zap-backend:**
+    *   Logs de depuração adicionados para verificar o caminho do Chrome.
+    *   Variáveis de ambiente e disco persistente configurados no Render.
+    *   Próximo: Garantir que o Chrome está disponível e que o WPPConnect inicializa corretamente.
 
-*   **Segurança:**
-    *   Implementar RLS no Supabase é **crítico**.
-    *   Considerar autenticação para a conexão WebSocket entre `zap-backend` e `Backend Bolt`.
-    *   Gerenciar chaves de API e segredos de forma segura.
-*   **Tratamento de Erros e Resiliência:**
-    *   Implementar reconexão automática para o cliente WebSocket no `Backend Bolt`.
-    *   Tratamento robusto de erros em todas as interações de API e WS.
-    *   Mecanismos de retry para operações críticas.
-*   **Gerenciamento de Estado no Frontend:**
-    *   Utilizar uma biblioteca de gerenciamento de estado (Context API, Zustand, Redux) se a complexidade do `Frontend Bolt` crescer.
-*   **Testes:** Desenvolver testes unitários e de integração para os componentes.
-*   **Documentação:** Manter este briefing e outra documentação relevante atualizada.
+## 8. Pontos de Atenção e Próximos Passos Gerais — ATUALIZADO
+
+*   **Depuração WebSocket:**
+    *   Testar conexão WSS do frontend para o backend em produção.
+    *   Monitorar logs do navegador e do Render para identificar possíveis erros de CORS, SSL ou inicialização do Chrome.
+    *   Utilizar ferramentas externas para testar o endpoint WebSocket.
+
+*   **Depuração do Chrome:**
+    *   Confirmar via logs se o Chrome está disponível no caminho esperado.
+    *   Ajustar comando de build ou variáveis de ambiente se necessário.
+
+*   **Próximos Passos:**
+    1. Validar conexão WebSocket em produção.
+    2. Garantir inicialização do WPPConnect no backend.
+    3. Integrar fluxo completo: QR Code, status e mensagens.
 
 ## 9. Estrutura Original do Projeto `zap-backend` (Referência)
 

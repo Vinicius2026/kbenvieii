@@ -155,6 +155,7 @@ function initializeWppConnect(broadcastFunction) {
     },
     puppeteerOptions: {
       executablePath: process.env.CHROME_EXEC_PATH, // DEVE SER CONFIGURADO NO RENDER
+      userDataDir: '/tmp/chrome_profile',
       args: [ // Argumentos recomendados para ambientes como o Render
         '--no-sandbox',
         '--disable-setuid-sandbox',
